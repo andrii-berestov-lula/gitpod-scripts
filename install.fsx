@@ -7,7 +7,8 @@ open type OperatingSystem
 
 // Links for companion app https://www.gitpod.io/blog/local-app
 let toolsDir = "./bin/"
-let requiredTools = [|"oathkeeper";"companion"|] 
+let requiredTools = [|"oathkeeper";"companion"|]
+let companionUrlPrefix = "https://gitpod.io/static/bin/gitpod-local-companion"
 
 type DependencyInfo = { Name: string ; Present: bool }
 type OperatingSystem = Mac | Linux | Windows
@@ -38,7 +39,7 @@ let prependDir (path:string) filename = path + filename
 let prependToolsDir = prependDir toolsDir
 
 let getCompanionDownloadLinkFor osType =
-    "https://gitpod.io/static/bin/gitpod-local-companion" + 
+    companionUrlPrefix +
     match osType with
     | {Name = Mac; Architecture = Arm64} -> "-darwin-arm64"
     | {Name= Mac; Architecture=X86|X64}  -> "-darwin"
@@ -49,7 +50,6 @@ let getCompanionDownloadLinkFor osType =
     | {Name=_; Architecture=_} -> failwith "companion app is not supported for this platform"
     |> Uri
 
-
 let downloadFileTo path name (url: Uri) =
     task {
         use file = File.OpenWrite(path + name )
@@ -59,7 +59,8 @@ let downloadFileTo path name (url: Uri) =
         return path + name
     } |> Async.AwaitTask |> Async.RunSynchronously
 
-let downloadCompanionApp = downloadFileTo toolsDir "companion" <| getCompanionDownloadLinkFor (getOsType ())
+let downloadCompanionApp = downloadFileTo toolsDir "companion" <| (getCompanionDownloadLinkFor <| getOsType ())
+
 let makeFileExecutable filePath =
     let cmd = $"chmod +x {filePath}"
     use proc = System.Diagnostics.Process.Start("/bin/bash", $"-c \"{cmd}\"")
