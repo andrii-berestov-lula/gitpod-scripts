@@ -4,22 +4,23 @@ open System.Net.Http
 open System.Runtime.InteropServices
 open type OperatingSystem
 
+type System.String with
+    member this.EndsWith (chars: char array) =
+        chars |> Seq.map (this.EndsWith) |> Seq.forall ((=) true)
 
 // Links for companion app https://www.gitpod.io/blog/local-app
-// TODO: check if directory exists. If no, create it
-let toolsDir = "./bin/"
-let requiredTools = [|"oathkeeper";"companion"|]
 let companionUrlPrefix = "https://gitpod.io/static/bin/gitpod-local-companion"
 
 type DependencyInfo = { Name: string ; Present: bool }
-type OperatingSystem = Mac | Linux | Windows
+type OperatingSystem = Mac | Linux | Windows | Unsupported
 type CpuArchitecture = X64 | X86 | Arm64 | Unsupported
 type OsType = { Name: OperatingSystem; Architecture: CpuArchitecture }
 
 let getOSName () =
     if IsMacOS() then Mac
     elif IsWindows() then Windows
-    else Linux
+    elif IsLinux() then Linux
+    else OperatingSystem.Unsupported
 
 // TODO: Arm64 mac shows as X86 for some reason
 let getArch (): CpuArchitecture =
@@ -36,9 +37,7 @@ let getOsType () = {
 let private fileExists' name = File.Exists(name)
 let toolExists name = {Name=name; Present=fileExists' name}
 
-let prependDir (path:string) filename = path + filename
-let prependToolsDir = prependDir toolsDir
-
+let prependDir (path:string) filename =  if path.EndsWith([|'/';'\\'|]) then $"{path}{filename}" else $"{path}/{filename}"
 let getCompanionDownloadLinkFor osType =
     companionUrlPrefix +
     match osType with
