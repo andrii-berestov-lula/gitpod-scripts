@@ -68,5 +68,16 @@ let makeFileExecutable filePath =
     proc.WaitForExit()
     proc.ExitCode = 0
  
-    
-downloadCompanionApp |> makeFileExecutable
+// HOW IT SHOULD LOOK LIKE IN THE END
+// let installTools toolsDir tools =
+//     if not  dirPresent toolsDir then createDir toolsDir
+//     tools
+//     |> Seq.map (prependDir toolsDir)
+//     |> Seq.map isToolPresent
+//     |> Seq.filter isToolMissing
+//     |> Seq.map downloadTool osType
+//     |> Seq.map makeExecutable osType
+//     |> ignore
+//     addDirToPath toolsDir
+//     
+// installTools "./bin/" [|"oathkeeper";"companion"|]
