@@ -34,7 +34,7 @@ let getOsType () = {
     Architecture = getArch ()
 }
 let private fileExists' name = File.Exists(name)
-let fileExists name = {Name=name; Present=fileExists' name}
+let toolExists name = {Name=name; Present=fileExists' name}
 
 let prependDir (path:string) filename = path + filename
 let prependToolsDir = prependDir toolsDir
@@ -60,24 +60,35 @@ let downloadFileTo path name (url: Uri) =
         return path + name
     } |> Async.AwaitTask |> Async.RunSynchronously
 
-let downloadCompanionApp = downloadFileTo toolsDir "companion" <| (getCompanionDownloadLinkFor <| getOsType ())
+let dirPresent dir = Directory.Exists(dir)
+let createDir dir = Directory.CreateDirectory(dir) |> ignore
 
-let makeFileExecutable filePath =
-    let cmd = $"chmod +x {filePath}"
-    use proc = System.Diagnostics.Process.Start("/bin/bash", $"-c \"{cmd}\"")
-    proc.WaitForExit()
-    proc.ExitCode = 0
+let downloadTool dir osType (tool: DependencyInfo) =
+    match tool.Name with
+    | "companion" as n -> getCompanionDownloadLinkFor osType |> downloadFileTo dir n
+    | "oathkeeper" -> failwith "implement me"
+    | _ -> failwith "flow not supported"
+    
+let isToolMissing tool = tool.Present = true
+let makeExecutable (osType:OsType) filepath =
+    match osType.Name with
+    | Windows -> true
+    | _ -> 
+        let cmd = $"chmod +x {filepath}"
+        use proc = System.Diagnostics.Process.Start("/bin/bash", $"-c \"{cmd}\"")
+        proc.WaitForExit()
+        proc.ExitCode = 0
  
 // HOW IT SHOULD LOOK LIKE IN THE END
-// let installTools toolsDir tools =
-//     if not  dirPresent toolsDir then createDir toolsDir
-//     tools
-//     |> Seq.map (prependDir toolsDir)
-//     |> Seq.map isToolPresent
-//     |> Seq.filter isToolMissing
-//     |> Seq.map downloadTool osType
-//     |> Seq.map makeExecutable osType
-//     |> ignore
-//     addDirToPath toolsDir
+let installTools toolsDir tools =
+    if not (dirPresent <| toolsDir) then createDir <| toolsDir
+    tools
+    |> Seq.map (prependDir toolsDir)
+    |> Seq.map toolExists
+    |> Seq.filter isToolMissing
+    |> Seq.map (downloadTool toolsDir <| getOsType ())
+    |> Seq.map (makeExecutable <| getOsType())
+    |> ignore
+    // addDirToPath toolsDir
 //     
-// installTools "./bin/" [|"oathkeeper";"companion"|]
+installTools "./bin/" [|"oathkeeper";"companion"|]
