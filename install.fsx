@@ -6,6 +6,7 @@ open type OperatingSystem
 
 
 // Links for companion app https://www.gitpod.io/blog/local-app
+// TODO: check if directory exists. If no, create it
 let toolsDir = "./bin/"
 let requiredTools = [|"oathkeeper";"companion"|]
 let companionUrlPrefix = "https://gitpod.io/static/bin/gitpod-local-companion"
