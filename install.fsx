@@ -1,46 +1,32 @@
+#r "nuget: SharpCompress"
+
 open System
 open System.IO
 open System.Net.Http
 open System.Runtime.InteropServices
 open type OperatingSystem
 
-type System.String with
-    member this.EndsWith (chars: char array) =
-        chars |> Seq.map (this.EndsWith) |> Seq.forall ((=) true)
+open SharpCompress
 
-// Links for companion app https://www.gitpod.io/blog/local-app
-let companionUrlPrefix = "https://gitpod.io/static/bin/gitpod-local-companion"
-
-type DependencyInfo = { Name: string ; Present: bool }
 type OperatingSystem = Mac | Linux | Windows | Unsupported
 type CpuArchitecture = X64 | X86 | Arm64 | Unsupported
 type OsType = { Name: OperatingSystem; Architecture: CpuArchitecture }
 
-let getOSName () =
-    if IsMacOS() then Mac
-    elif IsWindows() then Windows
-    elif IsLinux() then Linux
-    else OperatingSystem.Unsupported
-
 // TODO: Arm64 mac shows as X86 for some reason
-let getArch (): CpuArchitecture =
-    match Architecture() with
-    | Architecture.Arm64 -> Arm64
-    | Architecture.X86 -> X86
-    | Architecture.X64 -> X64
-    | _ -> Unsupported
+let osInfo: OsType  =
+    {
+        Name = if IsMacOS() then Mac elif IsWindows() then Windows elif IsLinux() then Linux else OperatingSystem.Unsupported
+        Architecture =
+            match Architecture() with
+            | Architecture.Arm64 -> Arm64
+            | Architecture.X86 -> X86
+            | Architecture.X64 -> X64
+            | _ -> Unsupported
+    }
 
-let getOsType () = {
-    Name = getOSName ()
-    Architecture = getArch ()
-}
-let private fileExists' name = File.Exists(name)
-let toolExists name = {Name=name; Present=fileExists' name}
-
-let prependDir (path:string) filename =  if path.EndsWith([|'/';'\\'|]) then $"{path}{filename}" else $"{path}/{filename}"
-let getCompanionDownloadLinkFor osType =
-    companionUrlPrefix +
-    match osType with
+let companionDownloadLink =
+    "https://gitpod.io/static/bin/gitpod-local-companion" +
+    match osInfo with
     | {Name = Mac; Architecture = Arm64} -> "-darwin-arm64"
     | {Name= Mac; Architecture=X86|X64}  -> "-darwin"
     | {Name=Windows; Architecture=X64} -> "-windows.exe"
@@ -48,46 +34,65 @@ let getCompanionDownloadLinkFor osType =
     | {Name=Linux;Architecture=X64} -> "-linux-arm64"
     | {Name=Linux; Architecture=X86} -> "-linux"
     | {Name=_; Architecture=_} -> failwith "companion app is not supported for this platform"
-    |> Uri
 
-let downloadFileTo path name (url: Uri) =
-    task {
-        use file = File.OpenWrite(path + name )
-        use client = new HttpClient()
-        let! res = client.GetStreamAsync(url)
-        do! res.CopyToAsync(file)
-        return path + name
-    } |> Async.AwaitTask |> Async.RunSynchronously
+let oathkeeperDownloadLink = 
+    "https://github.com/ory/oathkeeper/releases/download/v0.39.4/" + 
+    match osInfo with
+    | {Name = Mac; Architecture = Arm64} -> "oathkeeper_0.39.4-macOS_arm64.tar.gz"
+    | {Name = Mac; Architecture = X64 | X86} -> "oathkeeper_0.39.4-macOS_64bit.tar.gz"
+    | {Name = Windows; Architecture = X64} -> "oathkeeper_0.39.4-windows_64bit.zip"
+    | {Name = Windows; Architecture = X86} -> "oathkeeper_0.39.4-windows_32bit.zip"
+    | {Name = Linux; Architecture = X64} -> "oathkeeper_0.39.4-linux_64bit.tar.gz"
+    | {Name = Linux; Architecture = X86} -> "oathkeeper_0.39.4-linux_32bit.tar.gz"
+    | {Name = _; Architecture = _} -> failwith "oathkeeper app is not supported for this platform"
 
-let dirPresent dir = Directory.Exists(dir)
-let createDir dir = Directory.CreateDirectory(dir) |> ignore
-
-let downloadTool dir osType (tool: DependencyInfo) =
-    match tool.Name with
-    | "companion" as n -> getCompanionDownloadLinkFor osType |> downloadFileTo dir n
-    | "oathkeeper" -> failwith "implement me"
-    | _ -> failwith "flow not supported"
+let rec downloadTool (fullPath:string) =
+    let downloadFileTo (url: string) =
+        task {
+            use file = File.OpenWrite(fullPath)
+            use client = new HttpClient()
+            let! res = client.GetStreamAsync(url)
+            do! res.CopyToAsync(file)
+            return fullPath
+        }
     
-let isToolMissing tool = tool.Present = true
-let makeExecutable (osType:OsType) filepath =
-    match osType.Name with
+    match fullPath with
+    | s when s.EndsWith "companion" -> downloadFileTo companionDownloadLink
+    | s when s.EndsWith "oathkeeper" -> downloadFileTo companionDownloadLink
+    | _ -> failwith "No such tool"
+    
+let makeExecutable filepath =
+    match osInfo.Name with
     | Windows -> true
     | _ -> 
         let cmd = $"chmod +x {filepath}"
         use proc = System.Diagnostics.Process.Start("/bin/bash", $"-c \"{cmd}\"")
         proc.WaitForExit()
         proc.ExitCode = 0
+
+(*let extract filepath =
+    GZipArchive
+    SharpCompress.Readers.Tar.TarReader.Open*)
+
+let printPass msg x =
+    printf $"%s{msg}: %A{x}\n\n"
+    x
  
 // HOW IT SHOULD LOOK LIKE IN THE END
 let installTools toolsDir tools =
-    if not (dirPresent <| toolsDir) then createDir <| toolsDir
-    tools
-    |> Seq.map (prependDir toolsDir)
-    |> Seq.map toolExists
-    |> Seq.filter isToolMissing
-    |> Seq.map (downloadTool toolsDir <| getOsType ())
-    |> Seq.map (makeExecutable <| getOsType())
-    |> ignore
-    // addDirToPath toolsDir
-//     
-installTools "./bin/" [|"oathkeeper";"companion"|]
+    printf $"Your OS info: %A{osInfo}\n"
+    if not (Directory.Exists toolsDir) then Directory.CreateDirectory toolsDir |> ignore
+    let fullPathTools = tools |> Seq.map ((+) toolsDir)
+        
+    fullPathTools
+        |> Seq.filter (File.Exists >> not) |> printPass "filtered"
+        |> Seq.map (fun f -> downloadTool f |> Async.AwaitTask |> Async.RunSynchronously) |> printPass "downloaded"
+        |> ignore
+    
+    fullPathTools
+        |> Seq.map makeExecutable |> printPass "made executable"
+        |> ignore
+        
+
+installTools "./bin/" [|"oathkeeper"; "companion"|] |> ignore
+    
