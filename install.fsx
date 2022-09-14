@@ -1,9 +1,11 @@
 open System
 open System.IO
-open System.Net.Http
 open System.Runtime.InteropServices
 
+let client = new System.Net.Http.HttpClient()
+
 open type OperatingSystem
+open System.Threading.Tasks
 
 type OperatingSystem =
     | Mac
@@ -59,19 +61,17 @@ let oathkeeperDownloadLink =
       | { Name = Linux; Architecture = _ } -> "oathkeeper_0.39.4-linux_32bit.tar.gz"
       | { Name = _; Architecture = _ } -> failwith "oathkeeper app is not supported for this platform"
 
-let rec downloadTool (fullPath: string) =
-    let downloadFileTo (url: string) =
+let rec downloadToolTo (fullPath: string) =
+    let downloadFileFrom (url: string) =
         task {
             use file = File.OpenWrite(fullPath)
-            use client = new HttpClient()
             let! res = client.GetStreamAsync(url)
             do! res.CopyToAsync(file)
-            return fullPath
         }
 
     match fullPath with
-    | s when s.EndsWith "companion" -> downloadFileTo companionDownloadLink
-    | s when s.EndsWith "oathkeeper" -> downloadFileTo oathkeeperDownloadLink
+    | s when s.EndsWith "companion" -> downloadFileFrom companionDownloadLink
+    | s when s.EndsWith "oathkeeper" -> downloadFileFrom oathkeeperDownloadLink
     | _ -> failwith "No such tool"
 
 let makeExecutable filepath =
@@ -92,16 +92,17 @@ let extractInto toolsDir (filepath: string) =
         ()
 
     match osInfo.Name with
-    | Windows -> runCommand "pwsh.exe" "--command \"Expand-Archive -Force {filepath} {toolsDir}\""
+    | Windows -> runCommand "pwsh.exe" $"--command \"Expand-Archive -Force {filepath} {toolsDir}\""
     | Linux
     | Mac ->
         File.Move(filepath, $"{filepath}.tar")
-        runCommand "/bin/bash" $"-c \"tar -xvf {filepath}.tar -C {toolsDir} {(filepath.Split '/') |> Array.last}\""
+        let fileName = Path.GetFileName(filepath)
+        runCommand "/bin/bash" $"-c \"tar -xvf {filepath}.tar -C {toolsDir} {fileName}\""
         File.Delete($"{filepath}.tar")
     | _ -> failwith "You're in a trouble"
 
 // HOW IT SHOULD LOOK LIKE IN THE END
-let installTools toolsDir tools =
+let installTools toolsDir tools = task {
     printf $"Your OS info: %A{osInfo}\n"
 
     if not (Directory.Exists toolsDir) then
@@ -109,17 +110,16 @@ let installTools toolsDir tools =
 
     let fullPathTools = tools |> Array.map ((+) toolsDir)
 
+    let! _ =
+        fullPathTools
+        |> Array.filter (not << File.Exists)
+        |> Array.map downloadToolTo
+        |> Task.WhenAll
+
     fullPathTools
-    |> Array.filter (File.Exists >> not)
-    |> Array.map (fun f ->
-        downloadTool f
-        |> Async.AwaitTask
-        |> Async.RunSynchronously)
-    |> Array.map (fun i ->
-        if i.Contains("oathkeeper") then
-            extractInto toolsDir i
-        elif i.Contains("companion") then
-            makeExecutable i)
+    |> Array.iter (fun path ->
+        if   path.Contains("oathkeeper") then extractInto toolsDir path
+        elif path.Contains("companion")  then makeExecutable path)
+}
 
-
-installTools "./bin/" [| "oathkeeper"; "companion" |]
+(installTools "./bin/" [| "oathkeeper"; "companion" |]).Wait()
