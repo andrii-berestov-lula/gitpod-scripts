@@ -1,13 +1,9 @@
-#r "nuget: SharpCompress"
-
 open System
 open System.IO
 open System.Net.Http
 open System.Runtime.InteropServices
 
 open type OperatingSystem
-
-open SharpCompress
 
 type OperatingSystem =
     | Mac
@@ -57,9 +53,10 @@ let oathkeeperDownloadLink =
       | { Name = Mac; Architecture = _ } -> "oathkeeper_0.39.4-macOS_64bit.tar.gz"
       | { Name = Windows; Architecture = X64 } -> "oathkeeper_0.39.4-windows_64bit.zip"
       | { Name = Windows; Architecture = X86 } -> "oathkeeper_0.39.4-windows_32bit.zip"
-      | { Name = Linux; Architecture = X64|X86 } -> "oathkeeper_0.39.4-linux_64bit.tar.gz"
+      | { Name = Linux
+          Architecture = X64 | X86 } -> "oathkeeper_0.39.4-linux_64bit.tar.gz"
       | { Name = Linux; Architecture = Arm64 } -> "oathkeeper_0.39.4-linux_arm64.tar.gz"
-      | { Name = Linux; Architecture = _} -> "oathkeeper_0.39.4-linux_32bit.tar.gz"
+      | { Name = Linux; Architecture = _ } -> "oathkeeper_0.39.4-linux_32bit.tar.gz"
       | { Name = _; Architecture = _ } -> failwith "oathkeeper app is not supported for this platform"
 
 let rec downloadTool (fullPath: string) =
@@ -83,8 +80,7 @@ let makeExecutable filepath =
     | _ ->
         let cmd = $"chmod +x {filepath}"
 
-        use proc =
-            System.Diagnostics.Process.Start("/bin/bash", $"-c \"{cmd}\"")
+        use proc = System.Diagnostics.Process.Start("/bin/bash", $"-c \"{cmd}\"")
 
         proc.WaitForExit()
         ()
@@ -94,18 +90,15 @@ let extractInto toolsDir (filepath: string) =
         use proc = System.Diagnostics.Process.Start(cmd, args)
         proc.WaitForExit()
         ()
-        
+
     match osInfo.Name with
     | Windows -> runCommand "pwsh.exe" "--command \"Expand-Archive {filepath} {toolsDir}\""
-    | Linux | Mac ->
-        runCommand "/bin/bash" $"-c \"mv {filepath} {filepath}.tar\""
+    | Linux
+    | Mac ->
+        File.Move(filepath, $"{filepath}.tar")
         runCommand "/bin/bash" $"-c \"tar -xvf {filepath}.tar -C {toolsDir} {(filepath.Split '/') |> Array.last}\""
-        runCommand "/bin/bash" $"-c \"rm {filepath}.tar\""
+        File.Delete($"{filepath}.tar")
     | _ -> failwith "You're in a trouble"
-
-let printPass msg x =
-    printf $"%s{msg}: %A{x}\n\n"
-    x
 
 // HOW IT SHOULD LOOK LIKE IN THE END
 let installTools toolsDir tools =
@@ -114,8 +107,7 @@ let installTools toolsDir tools =
     if not (Directory.Exists toolsDir) then
         Directory.CreateDirectory toolsDir |> ignore
 
-    let fullPathTools =
-        tools |> Array.map ((+) toolsDir)
+    let fullPathTools = tools |> Array.map ((+) toolsDir)
 
     fullPathTools
     |> Array.filter (File.Exists >> not)
@@ -123,10 +115,11 @@ let installTools toolsDir tools =
         downloadTool f
         |> Async.AwaitTask
         |> Async.RunSynchronously)
-    |> Array.map (fun i -> 
-            if i.Contains("oathkeeper") then extractInto toolsDir i 
-            elif i.Contains("companion") then makeExecutable i          
-        )
-    
+    |> Array.map (fun i ->
+        if i.Contains("oathkeeper") then
+            extractInto toolsDir i
+        elif i.Contains("companion") then
+            makeExecutable i)
+
 
 installTools "./bin/" [| "oathkeeper"; "companion" |]
