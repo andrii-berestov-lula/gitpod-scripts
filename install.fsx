@@ -101,6 +101,14 @@ let extractInto toolsDir (filepath: string) =
         File.Delete($"{filepath}.tar")
     | _ -> failwith "You're in a trouble"
 
+let cleanupIfRequired dir =
+    let notExecutable (name:string) = name.EndsWith(".exe") |> not
+    match osInfo.Name with
+    | Windows -> 
+        let a: Collections.Generic.IEnumerable<string> = Directory.EnumerateFiles dir 
+        a |> Seq.filter notExecutable |> Seq.iter File.Delete 
+    | _ -> printfn "Cleanup not required"
+
 // HOW IT SHOULD LOOK LIKE IN THE END
 let installTools toolsDir tools = task {
     printf $"Your OS info: %A{osInfo}\n"
@@ -118,7 +126,9 @@ let installTools toolsDir tools = task {
 
     fullPathTools
     |> Array.iter (fun path ->
-        if   path.Contains("oathkeeper") then extractInto toolsDir path
+        if   path.Contains("oathkeeper") then 
+            extractInto toolsDir path
+            cleanupIfRequired toolsDir
         elif path.Contains("companion")  then makeExecutable path)
 }
 
