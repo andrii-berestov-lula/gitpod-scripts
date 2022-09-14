@@ -92,7 +92,7 @@ let extractInto toolsDir (filepath: string) =
         ()
 
     match osInfo.Name with
-    | Windows -> runCommand "pwsh.exe" "--command \"Expand-Archive {filepath} {toolsDir}\""
+    | Windows -> runCommand "pwsh.exe" "--command \"Expand-Archive -Force {filepath} {toolsDir}\""
     | Linux
     | Mac ->
         File.Move(filepath, $"{filepath}.tar")
