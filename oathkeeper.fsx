@@ -235,7 +235,7 @@ let killBackgroundProcessOnCancel (pids: int []) =
                 printfn "Invalid PID provided"
                 ())
 
-let runOathkeeper (toolsDir: string) =
+let runOathkeeper (toolsDir: string) (configPath: string) =
     let toolsDir =
         if (toolsDir.EndsWith '/' || toolsDir.EndsWith '\\')
            |> not then
@@ -243,11 +243,8 @@ let runOathkeeper (toolsDir: string) =
         else
             toolsDir
 
-    let oathkeeperId = Runner.runInBackground $"%s{toolsDir}oathkeeper"
+    let oathkeeperId = Runner.runInBackground $"%s{toolsDir}oathkeeper serve -c %s{configPath}"
     killBackgroundProcessOnCancel [| oathkeeperId |]
-
-    while true do
-        ()
 
 
 let main argv =
@@ -264,14 +261,24 @@ let main argv =
     | [] ->
         if File.Exists defaultConfigPath then
             Ory.login <| UserConfig.read defaultConfigPath
-            runOathkeeper "./bin/"
+            runOathkeeper "./bin/" "./ory/config/oathkeeper/oathkeeper.yml"
+            while true do ()
         else
             printfn $"Please call `dotnet fsi {fsi.CommandLineArgs.[0]} register`"
             Environment.Exit(1)
     | [ x ] ->
         if File.Exists defaultConfigPath then
             Ory.login <| UserConfig.read defaultConfigPath
-            runOathkeeper x
+            runOathkeeper x "./ory/config/oathkeeper/oathkeeper.yml"
+            while true do ()
+        else
+            printfn $"Please call `dotnet fsi {fsi.CommandLineArgs.[0]} register`"
+            Environment.Exit(1)
+    | [x;c] ->
+        if File.Exists defaultConfigPath then
+            Ory.login <| UserConfig.read defaultConfigPath
+            runOathkeeper x c
+            while true do ()
         else
             printfn $"Please call `dotnet fsi {fsi.CommandLineArgs.[0]} register`"
             Environment.Exit(1)
