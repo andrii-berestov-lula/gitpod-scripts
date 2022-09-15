@@ -102,34 +102,59 @@ let extractInto toolsDir (filepath: string) =
     | _ -> failwith "You're in a trouble"
 
 let cleanupIfRequired dir =
-    let notExecutable (name:string) = name.EndsWith(".exe") |> not
+    let notExecutable (name: string) = name.EndsWith(".exe") |> not
+
     match osInfo.Name with
-    | Windows -> 
-        let a: Collections.Generic.IEnumerable<string> = Directory.EnumerateFiles dir 
-        a |> Seq.filter notExecutable |> Seq.iter File.Delete 
+    | Windows ->
+        let a: Collections.Generic.IEnumerable<string> = Directory.EnumerateFiles dir
+
+        a
+        |> Seq.filter notExecutable
+        |> Seq.iter File.Delete
     | _ -> printfn "Cleanup not required"
 
 // HOW IT SHOULD LOOK LIKE IN THE END
-let installTools toolsDir tools = task {
-    printf $"Your OS info: %A{osInfo}\n"
+let installTools toolsDir tools =
+    task {
+        printf $"Your OS info: %A{osInfo}\n"
 
-    if not (Directory.Exists toolsDir) then
-        Directory.CreateDirectory toolsDir |> ignore
+        if not (Directory.Exists toolsDir) then
+            Directory.CreateDirectory toolsDir |> ignore
 
-    let fullPathTools = tools |> Array.map ((+) toolsDir)
+        let toolsDir =
+            if (toolsDir.EndsWith '/' || toolsDir.EndsWith '\\')
+               |> not then
+                toolsDir + Path.DirectorySeparatorChar.ToString()
+            else
+                toolsDir
 
-    let! _ =
+        let fullPathTools = tools |> Array.map ((+) toolsDir)
+
+        let! _ =
+            fullPathTools
+            |> Array.filter (not << File.Exists)
+            |> Array.map downloadToolTo
+            |> Task.WhenAll
+
         fullPathTools
-        |> Array.filter (not << File.Exists)
-        |> Array.map downloadToolTo
-        |> Task.WhenAll
+        |> Array.iter (fun path ->
+            if path.Contains("oathkeeper") then
+                extractInto toolsDir path
+                cleanupIfRequired toolsDir
+            elif path.Contains("companion") then
+                makeExecutable path)
+    }
 
-    fullPathTools
-    |> Array.iter (fun path ->
-        if   path.Contains("oathkeeper") then 
-            extractInto toolsDir path
-            cleanupIfRequired toolsDir
-        elif path.Contains("companion")  then makeExecutable path)
-}
+let main argv =
+    match List.ofArray argv with
+    | [] ->
+        (installTools "./bin/" [| "oathkeeper"; "companion" |])
+            .Wait()
+    | [ x ] ->
+        (installTools x [| "oathkeeper"; "companion" |])
+            .Wait()
+    | x :: xs -> (installTools x <| Array.ofList xs).Wait()
 
-(installTools "./bin/" [| "oathkeeper"; "companion" |]).Wait()
+    0
+
+main (fsi.CommandLineArgs |> Array.tail)
