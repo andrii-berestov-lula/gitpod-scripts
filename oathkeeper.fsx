@@ -261,7 +261,7 @@ let main argv =
     | [] ->
         if File.Exists defaultConfigPath then
             Ory.login <| UserConfig.read defaultConfigPath
-            runOathkeeper "./bin/" "./ory/config/oathkeeper/oathkeeper.yml"
+            runOathkeeper "./bin/" "./.ory/config/oathkeeper/oathkeeper.yml"
             
         else
             printfn $"Please call `dotnet fsi {fsi.CommandLineArgs.[0]} register`"
@@ -269,7 +269,7 @@ let main argv =
     | [ x ] ->
         if File.Exists defaultConfigPath then
             Ory.login <| UserConfig.read defaultConfigPath
-            runOathkeeper x "./ory/config/oathkeeper/oathkeeper.yml"
+            runOathkeeper x "./.ory/config/oathkeeper/oathkeeper.yml"
             
         else
             printfn $"Please call `dotnet fsi {fsi.CommandLineArgs.[0]} register`"
