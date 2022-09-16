@@ -245,6 +245,8 @@ let runOathkeeper (toolsDir: string) (configPath: string) =
 
     let oathkeeperId = Runner.runInBackground $"%s{toolsDir}oathkeeper serve -c %s{configPath}"
     killBackgroundProcessOnCancel [| oathkeeperId |]
+    while true do
+        ()
 
 
 let main argv =
@@ -262,7 +264,7 @@ let main argv =
         if File.Exists defaultConfigPath then
             Ory.login <| UserConfig.read defaultConfigPath
             runOathkeeper "./bin/" "./ory/config/oathkeeper/oathkeeper.yml"
-            while true do ()
+            
         else
             printfn $"Please call `dotnet fsi {fsi.CommandLineArgs.[0]} register`"
             Environment.Exit(1)
@@ -270,7 +272,7 @@ let main argv =
         if File.Exists defaultConfigPath then
             Ory.login <| UserConfig.read defaultConfigPath
             runOathkeeper x "./ory/config/oathkeeper/oathkeeper.yml"
-            while true do ()
+            
         else
             printfn $"Please call `dotnet fsi {fsi.CommandLineArgs.[0]} register`"
             Environment.Exit(1)
@@ -278,7 +280,6 @@ let main argv =
         if File.Exists defaultConfigPath then
             Ory.login <| UserConfig.read defaultConfigPath
             runOathkeeper x c
-            while true do ()
         else
             printfn $"Please call `dotnet fsi {fsi.CommandLineArgs.[0]} register`"
             Environment.Exit(1)
