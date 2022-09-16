@@ -189,7 +189,6 @@ module Ory =
                     Environment.Exit(2)
                 | Some _ ->
                     printfn $"Successfully registered user: %s{user.Email}"
-                    Environment.Exit(0)
         with
         | :? AggregateException ->
             printfn "Gitpod should have gone timeout. Please start it once again in Browser."
@@ -214,7 +213,6 @@ module Ory =
                     Environment.Exit(2)
                 | Some _ ->
                     printfn $"Successfully logged in user: %s{user.Email}"
-                    Environment.Exit(0)
         with
         | :? AggregateException ->
             printfn "Gitpod should have gone timeout. Please start it once again in Browser."
