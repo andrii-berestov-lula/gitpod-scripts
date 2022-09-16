@@ -44,8 +44,8 @@ module Runner =
 
         sb |> string
 
-    let runInBackground cmd =
-        let proc = Process.Start(cmd, "")
+    let runInBackground (cmd: string) (arg: string) =
+        let proc = Process.Start(cmd, arg)
         proc.Id
 
 module UserConfig =
@@ -241,7 +241,7 @@ let runOathkeeper (toolsDir: string) (configPath: string) =
         else
             toolsDir
 
-    let oathkeeperId = Runner.runInBackground $"%s{toolsDir}oathkeeper serve -c %s{configPath}"
+    let oathkeeperId = Runner.runInBackground $"%s{toolsDir}oathkeeper" $"serve -c %s{configPath}"
     killBackgroundProcessOnCancel [| oathkeeperId |]
     while true do
         ()
